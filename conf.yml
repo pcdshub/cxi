@@ -5,3 +5,8 @@ db: /reg/g/pcds/pyps/apps/hutch-python/device_config/db.json
 
 # Hutch-specific imports
 load: cxi.beamline
+
+# Set platform information
+daq_platform:
+    default: 4
+    cxi-monitor: 3
