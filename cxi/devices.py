@@ -10,9 +10,9 @@ class Injector(Device):
     fineY = FC(EpicsSignal, '{self._fineY_name}')
     fineZ = FC(EpicsSignal, '{self._fineZ_name}')
                             
-    def __init__(self, coarseX_name, coarseY_name,
-                       coarseZ_name, fineX_name, fineY_name,
-                       fineZ_name, **kwargs):
+    def __init__(self, injector_name,
+                       coarseX_name, coarseY_name, coarseZ_name, 
+                       fineX_name, fineY_name, fineZ_name):
                                         
         self._coarseX_name = coarseX_name
         self._coarseY_name = coarseY_name
@@ -22,4 +22,4 @@ class Injector(Device):
         self._fineY_name = fineY_name
         self._fineZ_name = fineZ_name
 
-        super().__init__(**kwargs)
+        super().__init__(name=injector_name)
