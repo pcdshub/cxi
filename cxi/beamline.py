@@ -59,3 +59,4 @@ with safe_load('PI3'):
            'fineY': 'CXI:PI3:MMS:05',
            'fineZ': 'CXI:PI3:MMS:06'}
     injector_PI3 = Injector(**PI3)
+

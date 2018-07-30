@@ -2,7 +2,7 @@ from ophyd.device import Device, FormattedComponent as FCpt
 from ophyd.signal import EpicsSignal
 from ophyd.areadetector.plugins import ROIPlugin, StatsPlugin
 
-from pcdsdevices.areadetector.detectors import PCDSDetector
+from pcdsdevices.pcdsdevices.areadetector.detectors import PCDSDetector
 
 
 class Injector(Device):
@@ -192,7 +192,7 @@ class CoolerShaker(Device):
     set_SP2 = FCpt(EpicsSignal, '{self._set_SP2}')
     current2 = FCpt(EpicsSignal, '{self._current2}')
     
-    reboot = FC(EpicsSignal, '{self._reboot}')
+    reboot = FCpt(EpicsSignal, '{self._reboot}')
     
     def __init__(self, name,
                        temperature1, SP1, set_SP1, current1,
@@ -474,7 +474,7 @@ class FlowIntegrator(Device):
     time10 = FCpt(EpicsSignal, '{self._time10}')
     
     def __init__(self, name,
-                       integrator_source, flow_source, names
+                       integrator_source, flow_source, names,
                        start1, used1, time1,
                        start2, used2, time2,
                        start3, used3, time3,
@@ -599,4 +599,7 @@ class Questar(PCDSDetector):
         super().__init__(prefix, *args, **kwargs)
         
         self.ROI_stats.nd_array_port.put(ROI1_port)
+
+
+
 
