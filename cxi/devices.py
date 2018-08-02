@@ -598,7 +598,7 @@ class Questar(PCDSDetector):
         
         super().__init__(prefix, *args, **kwargs)
         
-        self.ROI_stats.nd_array_port.put(ROI1_port)
+        self.ROI_stats.nd_array_port.put(ROI_port)
 
 
 
