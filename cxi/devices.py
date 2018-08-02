@@ -2,7 +2,7 @@ from ophyd.device import Device, FormattedComponent as FCpt
 from ophyd.signal import EpicsSignal
 from ophyd.areadetector.plugins import ROIPlugin, StatsPlugin
 
-from pcdsdevices.pcdsdevices.areadetector.detectors import PCDSDetector
+from pcdsdevices.areadetector.detectors import PCDSDetector
 
 
 class Injector(Device):
