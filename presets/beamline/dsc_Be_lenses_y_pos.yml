@@ -1,0 +1,15 @@
+9.5keV:
+  active: true
+  history:
+    21 Nov 2018 18:35:47: '   32.2437'
+  value: 32.24365234375
+9500eV:
+  active: true
+  history:
+    21 Nov 2018 18:37:34: '   32.2437'
+  value: 32.24365234375
+OUT:
+  active: true
+  history:
+    21 Nov 2018 18:38:31: '   78.0000'
+  value: 78

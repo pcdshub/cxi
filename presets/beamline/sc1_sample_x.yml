@@ -1,0 +1,32 @@
+Diode:
+  active: true
+  history:
+    19 Nov 2018 05:15:44: ' -346.1000 This is the x position for the timing diode
+      in sc1'
+    01 Nov 2018 19:16:40: ' -261.1000 This is the x position for the timing diode
+      in sc1'
+    01 Nov 2018 19:18:51: ' -261.1000 This is the x position for the timing mirror
+      in sc1'
+    01 Nov 2018 19:19:01: ' -374.0000 This is the x position for the timing mirror
+      in sc1'
+    01 Nov 2018 19:19:11: ' -361.1000 This is the x position for the timing diode
+      in sc1'
+    31 Oct 2018 18:29:17: ' -361.1000 test'
+    31 Oct 2018 19:08:53: ' -361.1000 test'
+  value: -346.1
+Mirror:
+  active: true
+  history:
+    19 Nov 2018 05:15:44: ' -381.7000 This is the x position for the timing mirror
+      in sc1'
+    01 Nov 2018 19:19:20: ' -374.0000 This is the x position for the timing mirror
+      in sc1'
+    02 Nov 2018 16:22:44: ' -391.8745 Andy''s first comment'
+    31 Oct 2018 19:09:42: ' -373.8960 test'
+  value: -381.7
+Out:
+  active: true
+  history:
+    01 Nov 2018 19:17:09: '   20.0000 This is the out x position'
+    31 Oct 2018 19:10:26: '    0.0000 test'
+  value: 20
