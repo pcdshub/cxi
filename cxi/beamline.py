@@ -1102,7 +1102,7 @@ def vent_sc1(rate="Normal"):
 def camviewer():
     subprocess.call(['/reg/neh/operator/cxiopr/bin/yagviewer.sh'])
         
-def end_shift():
+def shift_end():
     print("This does not close the SC1 gate valves, only the other gate valves")
     cxi_pulsepicker.close()
     sc3_pulsepicker.close()    
@@ -1166,11 +1166,13 @@ def cycle_sc3():
 dg1_yag_y = IMS('CXI:DG1:MMS:08',name='dg1_yag_y')
 dg2_yag_y = IMS('CXI:DG2:MMS:10',name='dg2_yag_y')
 
-def start_shift():
+def shift_start():
     cxi_pulsepicker.close()
     sc3_pulsepicker.close()
     dg1_yag_y.umv(0)
+    print("the DG1 YAG is inserted")
     dg2_yag_y.umv(0)
+    print("The DG2 Yag is inserted")
 #launch dg1 camera
     subprocess.call(['/reg/neh/operator/cxiopr/bin/msh/launch-startup-cameras.sh'])
   
@@ -1185,4 +1187,11 @@ def start_shift():
     sc1_gatevalve_downstream.open_valve()
     
     
+def gige_launch(camera=1,view="camViewer"):
+    '''camera defines which gige to use and view defines whether to open the '''
+    cam=str(camera)    
+    if view=="master":
+        subprocess.call(["/reg/g/pcds/engineering_tools/cxi/scripts/gige", "-c", cam, "-m", "-w", str(12)])
+    else:
+        subprocess.call(['/reg/g/pcds/engineering_tools/cxi/scripts/gige' ,'-c', cam, "-w", str(12)])
     
