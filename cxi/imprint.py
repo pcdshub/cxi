@@ -1,5 +1,6 @@
-import bluesky.plans as bp
-import bluesky.plan_stubs as bps
+#import bluesky.plans as bp
+#import bluesky.plan_stubs as bps
+from cxi.db import bp, bps
 from bluesky.suspenders import SuspendFloor
 from ophyd.utils import AlarmSeverity
 from pcdsdaq.plans import sequencer_mode  # In dev branch of pcdsdaq currently

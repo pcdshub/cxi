@@ -1,11 +1,8 @@
 from hutch_python.utils import safe_load
 
-from jet_tracking.devices import Injector, Diffract
-from jet_tracking.devices import Questar, Parameters
-from jet_tracking.devices import Offaxis, OffaxisParams
-from jet_tracking.jet_control import JetControl
 import subprocess
 import sys
+from scipy import ndimage
 
 from ophyd import Device, Component as Cpt, EpicsSignal, EpicsSignalRO, AreaDetector
 from pcdsdevices.device_types import PulsePicker
@@ -20,6 +17,10 @@ from epics import PV
 #from cxi.db import cxi
 from cxi.db import cxi_pulsepicker
 #from cxi.db import daq
+from cxi.db import camviewer
+
+from pcdsdevices.sequencer import EventSequencer
+seq = EventSequencer('ECS:SYS0:5', name='seq_5')
 
 sc3_pulsepicker = PulsePicker('CXI:DS1:MMS:14', name='sc3_pulsepicker')
     
@@ -31,213 +32,70 @@ ds2_z_position = IMS('CXI:DS2:MMS:06', name = 'ds2_z_distance')
 sc3_DsdCspad_intensity=PV('CXI:SC3:DIFFRACT:TOTAL_ADU')
 sc1_DscCspad_intensity=PV('CXI:SC1:DIFFRACT:TOTAL_ADU')
 
-#making the cxi_pulsepicker something that can be monitored by jet tracking
-cxi_pulsepicker_state=PV('XRT:DIA:MMS:16:READ_DF')
-
 #defining quick CSPAD optimization function
 tot_intensity=0
 
-class Jet_chaser(Device):
-    sc3_broad_x = Cpt(IMS,':PI3:MMS:01')    
-    sc3_fine_x = Cpt(IMS, ':PI3:MMS:04')
-    DsdCspad_intensity= Cpt(EpicsSignalRO, ':SC3:DIFFRACT:TOTAL_ADU')
-    jet_x_pos=[]
-    det_intensity=[]
-    tot_intensity=0
-    accumulation=60
-    trigger = 0
-    chamber = 3
-    
-    def scan_jet(self, inScale="Fine"):
-        if inScale=="Coarse":
-            x_min=0.0012        
-            steps=50
-            x_step=(-1)*steps*x_min/2
-            mot = self.sc3_broad_x
-               
-        elif inScale=="Fine":
-            x_min=0.0012        
-            steps=20
-            x_step=(-1)*steps*x_min/2
-            mot = self.sc3_broad_x
-            
-        else:
-            inScale=="WAG"
-            steps=50
-            x_min=0.03
-            x_step=(-1)*steps*x_min/2
-            mot = self.sc3_fine_x
-            x_start=mot.user_readback.get()
-        
-        mot.mvr(x_step,wait=True)            
-        self.det_intensity=[]   
-        self.jet_x_pos=[]
-    #    tot_intensity=0
-        for i in range(steps):
-            mot.mvr(x_min, wait=True)
-            self.jet_x_pos.append(mot.user_readback.get())
-            for j in range(self.accumulation):
-                tot_intensity=0
-                intensity=self.DsdCspad_intensity.get()
-                tot_intensity=+intensity
-            self.det_intensity.append(tot_intensity)
-        plt.plot(self.jet_x_pos,self.det_intensity)
-        best_x=self.det_intensity.index(max(self.det_intensity))
-        mot.mv(self.jet_x_pos[best_x])
-        high=max(self.det_intensity)
-        low=min(self.det_intensity)
-        ratio=abs(high/low)
-        std=stat.stdev(self.det_intensity)
-        print("standard deviation in detector intensity: ",std)
-        print("ratio of max and min detector intensities to standard deviation: ", (high/std,low/std))
-        print(ratio)
-        if ratio >= 1:
-            print("Scan seems successful, will move to optimum x position")
-            mot.mv(self.jet_x_pos[best_x],wait=True)
-            if inScale=="Fine":
-                print("Scan looks successful.  Moving to monitoring")
-                self.trigger=1
-            else:
-                print("Doing a fine scan quickly to better find optimum")
-                self.trigger=2
-        else:
-            mot.mv(x_start,wait=True)
-            if inScale=="Coarse":
-                print("Will need to do a WAG scan")
-                self.trigger=3
-            elif inScale=="Fine":
-                print("Fine scan was unsuccessful.  Will need to do a Coarse scan")
-                self.trigger=0
-            else:
-                print("Something seems wrong.  The Wild Ass Guess scan was unsuccessful.  Aborting")
-                exit
-                
-    def monitor_jet(self,inThreshhold=0.75, **kwargs):
-    #now make the total intensity buffer for the jet_monitor
-        #global trigger
-        tot_intensity=0
-        nevents=120
-        for i in range(nevents):
-            intensity=self.DsdCspad_intensity.get()
-            tot_intensity=+intensity
-            sleep(0.1)
-        print(tot_intensity)
-        buffer_intensity=0
-        curr_intensity=tot_intensity+1000000
-        buffer_intensity=tot_intensity*inThreshhold
-        while buffer_intensity<=curr_intensity:
-            new_intensity=0
-            if cxi_pulsepicker_state.get()==1:
-                print("Pulse picker is closed, will pause monitoring until it is open")            
-                sleep(10)
-            else:
-                for j in range(nevents):
-                    if cxi_pulsepicker_state.get()==1:
-                        sleep(10)
-                        print("Pulse picker is closed, will pause monitoring until it is open")
-                    else:
-                        intensity=self.DsdCspad_intensity.get()
-                        new_intensity=+intensity
-        #               print(tot_intensity,new_intensity)
-                        sleep(0.1)
-                curr_intensity=new_intensity
-            print(buffer_intensity,curr_intensity)
-            if curr_intensity >= tot_intensity:
-                tot_intensity=curr_intensity
-                buffer_intensity=tot_intensity*inThreshhold
-                print("The buffer intensity was increased to " "buffer_intensity")
-    ##print(total_intensity,curr_intensity)
-        print("the current intensity has dropped below the buffer, so I will chase the jet")
-        self.trigger=2            
-    
-                
-    def tracking_jet(self,inTrigger=0):
-        self.trigger = inTrigger
-
-        while True:
-            
-            if self.trigger == 0:
-                self.scan_jet(inScale="Coarse")
-    
-            if self.trigger == 1:
-                self.monitor_jet()
-                                                    
-            if self.trigger == 2:
-                self.scan_jet(inScale="Fine")
-    
-            if self.trigger == 3:
-                self.scan_jet(inScale="WAG")
-        
+from cxi.time_scans import Timetool
+from cxi.macros import Jet_chaser        
 sc3_jet_chase = Jet_chaser('CXI',name = 'sc3_jet_chase')
 
+def get_timetool():
+    return Timetool.from_rc()
 
-
-
-
+def sc1_stats():
+    sc1 = EpicsSignalRO('CXI:SC1:INLINE:IMAGE1:ArrayData')
+    while True:
+        plt.imshow(sc1.get())
+        plt.plot()
+        sleep(0.1)    
+    
 #defining positions for the sc1_sample_x motor so that we can quickly move the x motor to the proper position
 sc1_led = IMS('CXI:SC1:MMS:18', name='sc1_led')
 sc1_sample_x = IMS('CXI:SC1:MMS:02',name='sc1_sample_x')
 
+with safe_load('Foil_motors'):
+#   foil_x = IMS('CXI:PI1:MMS:01', name = 'foil_x')
+#   foil_y = IMS('CXI:PI1:MMS:02', name = 'foil_y')
+   foil_x = IMS('CXI:SC2:MMS:06', name = 'foil_x')
+   foil_y = IMS('CXI:SC2:MMS:05', name = 'foil_y')
 
-def safe_samplex(position="Out"): 
-    if ds1_z_distance <= -300:
-        ds1_z_position.umv(-250,wait=True)
-    if position == "Out":
-        sc1_sample_x.umv_Out()
-        print("Moving to the Out position")
-    else:
-        if position == "Diode":
-            sc1_led.umv_Out()
-            sc1_sample_x.umv_Diode()
-            print("Moving to the Diode position")
-        else:
-            if position == "Mirror":
-                sc1_led.umv_Out()
-                sc1_sample_x.umv_Mirror()
-                print("Moving to the Mirror position")
-            else:
-                print("You did not select a valid argument.  The options are Out, Diode, Mirror")
-                
-        
+with safe_load('MESH'):
+    from pcdsdevices.analog_signals import Mesh
+    mesh = Mesh('CXI:USR', 0, 1)
+
+
+# load devices used for jet tracking testing
+with safe_load('JT_testing_objects'):
+  from jet_tracking.devices import JTInput, JTOutput, JTFake
+
+  JT_input = JTInput(prefix='CXI:JTRK:REQ', name='JT_input')
+  JT_output = JTOutput(prefix='CXI:JTRK:PASS', name='JT_output')
+  JT_fake = JTFake(prefix='CXI:JTRK:FAKE', name='JT_fake')
+
 
 if True:
-    with safe_load('PI1_injector'):
-        PI1 = {'name': 'PI1_injector',
-               'coarseX': 'CXI:PI1:MMS:01',
-               'coarseY': 'CXI:PI1:MMS:02',
-               'coarseZ': 'CXI:PI1:MMS:03',
-               'fineX': 'CXI:USR:MMS:01',
-               'fineY': 'CXI:USR:MMS:02',
-               'fineZ': 'CXI:USR:MMS:03'}
-        PI1_injector = Injector(**PI1)
-
     with safe_load('SC1_questar'):
+        from jet_tracking.devices import JetCamera
         SC1_questar_ports = {'ROI_port': 'ROI1',
                              'ROI_stats_port': 'Stats1',
                              'ROI_image_port': 'IMAGE1'}
-        SC1_questar = Questar(**SC1_questar_ports, prefix='CXI:SC1:INLINE', name='SC1_questar')
+        SC1_questar = JetCamera(**SC1_questar_ports, prefix='CXI:SC1:INLINE', name='SC1_questar')
 
     with safe_load('SC1_params'):
-        SC1_params = Parameters(prefix='CXI:SC1:INLINE', name='SC1_params')
+        from jet_tracking.devices import InlineParams
+        SC1_params = InlineParams(prefix='CXI:SC1:INLINE', name='SC1_params')
 
     with safe_load('SC1_diffract'):
+        from jet_tracking.devices import Diffract
         SC1_diffract = Diffract(prefix='CXI:SC1:DIFFRACT', name='SC1_diffract')
 
     with safe_load('SC1_control'):
-        SC1_control = JetControl('SC1_control', 
-                PI1_injector, SC1_questar, SC1_params, SC1_diffract)
+        from jet_tracking.jet_control import JetControl
+        from cxi.db import cxi_pi2
+        SC1_control = JetControl('SC1_control', cxi_pi1, SC1_questar, SC1_params,
+                                 SC1_diffract)
 
 if False:
-    with safe_load('PI2_injector'):
-        PI2 = {'name': 'PI2_injector',
-               'coarseX': 'CXI:PI2:MMS:01',
-               'coarseY': 'CXI:PI2:MMS:02',
-               'coarseZ': 'CXI:PI2:MMS:03',
-               'fineX': 'CXI:PI2:MMS:04',
-               'fineY': 'CXI:PI2:MMS:05',
-               'fineZ': 'CXI:PI2:MMS:06'}
-        PI2_injector = Injector(**PI2)
-
     with safe_load('SC2_questar'):
         SC2_questar_ports = {'ROI_port': 'ROI1',
                              'ROI_stats_port': 'Stats1',
@@ -251,30 +109,25 @@ if False:
         SC2_offaxis = Offaxis(**SC2_offaxis_ports, prefix='CXI:GIGE:06', name='SC2_offaxis')
 
     with safe_load('SC2_params'):
-        SC2_params = Parameters(prefix='CXI:SC2:INLINE', name='SC2_params')
+        from jet_tracking.devices import InlineParams
+        SC2_params = InlineParams(prefix='CXI:SC2:INLINE', name='SC2_params')
 
     with safe_load('SC2_paroffaxis'):
+        from jet_tracking.devices import OffaxisParams
         SC2_paroffaxis = OffaxisParams(prefix='CXI:SC2:OFFAXIS', name='SC2_paroffaxis')
 
     with safe_load('SC2_diffract'):
+        from jet_tracking.devices import Diffract
         SC2_diffract = Diffract(prefix='CXI:SC2:DIFFRACT', name='SC2_diffract')
 
     with safe_load('SC2_control'):
-        SC2_control = JetControl('SC2_control', 
-                PI2_injector, SC2_questar, SC2_params, SC2_diffract)
+        from jet_tracking.jet_control import JetControl
+        from cxi.db import cxi_pi2
+        SC2_control = JetControl('SC2_control', cxi_pi2, SC2_questar, SC2_params,
+                                 SC2_diffract)
 
 
 if True:
-    with safe_load('PI3_injector'):
-        PI3 = {'name': 'PI3_injector',
-               'coarseX': 'CXI:PI3:MMS:01',
-               'coarseY': 'CXI:PI3:MMS:02',
-               'coarseZ': 'CXI:PI3:MMS:03',
-               'fineX': 'CXI:PI3:MMS:04',
-               'fineY': 'CXI:PI3:MMS:05',
-               'fineZ': 'CXI:PI3:MMS:06'}
-        PI3_injector = Injector(**PI3)
-
     with safe_load('SC3_questar'):
         SC3_questar_ports = {'ROI_port': 'ROI1',
                              'ROI_stats_port': 'Stats1',
@@ -288,132 +141,57 @@ if True:
         SC3_offaxis = Offaxis(**SC3_offaxis_ports, prefix='CXI:GIGE:07', name='SC3_offaxis')
 
     with safe_load('SC3_params'):
-        SC3_params = Parameters(prefix='CXI:SC3:INLINE', name='SC3_params')
+        from jet_tracking.devices import InlineParams
+        SC3_params = InlineParams(prefix='CXI:SC3:INLINE', name='SC3_params')
 
     with safe_load('SC3_paroffaxis'):
+        from jet_tracking.devices import OffaxisParams
         SC3_paroffaxis = OffaxisParams(prefix='CXI:SC3:OFFAXIS', name='SC3_paroffaxis')
 
     with safe_load('SC3_diffract'):
+        from jet_tracking.devices import Diffract
         SC3_diffract = Diffract(prefix='CXI:SC3:DIFFRACT', name='SC3_diffract')
 
     with safe_load('SC3_control'):
-        SC3_control = JetControl('SC3_control', 
-                PI3_injector, SC3_questar, SC3_params, SC3_diffract)
+        from jet_tracking.jet_control import JetControl
+        from cxi.db import cxi_pi3
+        SC3_control = JetControl('SC3_control', cxi_pi3, SC3_questar, SC3_params,
+                                 SC3_diffract)
 
 
 
 with safe_load("imprint scans"):
     from cxi.imprint import imprint_row, sequencer, beam_stats
 
-
-
-class GX_readback(Device):     
-    description = Cpt(EpicsSignal, ':PressSP.DESC')
-    pressure_setpoint = Cpt(EpicsSignal, ':PressSP')
-    pressure_value = Cpt(EpicsSignalRO, ':PRESS')
-    status = Cpt(EpicsSignal, ':Enable')
-    limit = Cpt(EpicsSignal, ':HiPressLimit')
-
-#    def __init__(self, inPressure = 0.0, inStatus=1):
-#        self.pressure_setpoint = inPressure
-#        self.status = inStatus
     
-    def set_pressure_setpoint(self, inPressure):
-        if inPressure >= 1000:
-            print("Max pressure is 1000 psi")
-            inPressure = 1000
-        if inPressure < 0:
-            print("Stop being stupid, pressure shouldn't be negative.  Setting the pressure to 0")
-            inPressure = 0
-        self.pressure_setpoint.put(inPressure)
-        return self.pressure_value.get()
-        
-    def set_status(self, inStatus):
-        self.status.put(inStatus)
-        return self.status.get()
-    
-    def set_pressure_limit(self, inLimit):
-        self.limit.put(inLimit)        
-        return self.limit.get()
+from cxi.macros import safe_samplex
+from cxi.macros import GX_readback
+from cxi.macros import Proportionair
+from cxi.macros import HPLC
 
-    def set_description(self, inDescription="NOPE"):
-        self.description.put(inDescription)
-        return self.description.get()        
-        
-        
-class Proportionair(Device):
-    chA = Cpt(GX_readback, ':01')
-    chB = Cpt(GX_readback, ':02')
-
-#    def __init__(self, inPressure = 0.0, inStatus=1):
-#        self.pressure_setpoint = inPressure
-#        self.status = inStatus
-prop_a = Proportionair('CXI:SDS:PCM:A', name='prop_a')   
-prop_b = Proportionair('CXI:SDS:PCM:B', name='prop_b')
+propA=Proportionair('CXI:SDS:PCM:A', name='propA')
+propB=Proportionair('CXI:SDS:PCM:B', name='propB')
+hplc1 = HPLC('CXI:SDS:LC20:01',name='hplc1')
+hplc2 = HPLC('CXI:SDS:LC20:02',name='hplc2')
 
 
+'''
+Building the selector boxes with multiple inheritances
+Building blocks will be reservoirs, valves, flow meters
+'''
 
-class HPLC(Device):     
-    status_setpoint = Cpt(EpicsSignal, ':Run')    
-    status_value = Cpt(EpicsSignalRO, ':Status')
-    flowrate_setpoint = Cpt(EpicsSignal, ':SetFlowRate')
-    flowrate_value = Cpt(EpicsSignalRO, ':FlowRate')
-    flowrate_setpoint_value = Cpt(EpicsSignalRO, ':FlowRateSP' )    
-    max_pressure_setpoint = Cpt(EpicsSignal, ':SetMaxPress')    
-    max_pressure = Cpt(EpicsSignalRO, ':MaxPress')
-    min_pressure_setpoint = Cpt(EpicsSignal,':SetMinPress')
-    min_pressure = Cpt(EpicsSignalRO,':MinPress')
-    error_state = Cpt(EpicsSignalRO,':Error')
-    error_process = Cpt(EpicsSignal, ':ClearError.PROC')
-    
-
-#    def __init__(self, *args, **kwargs, inFlowrate = 0.0, inStatus=1):
-#        super().__init__(*args, **kwargs)
-#        self.pressure_setpoint = inPressure
-#        self.status = inStatus
-    
-    def set_flowrate_setpoint(self, inFlowrate):
-        if inFlowrate >= 0.1:
-            print("The units are mL/min so verify you really want this flowrate")
-        if inFlowrate < 0:
-            print("Stop being stupid, flowrate shouldn't be negative.  Setting the flowrate to 0")
-            inFlowrate = 0
-        self.flowrate_setpoint.put(inFlowrate)
-        return self.flowrate_setpoint_value.get()
-        
-    def set_status(self, inStatus):
-        self.status_setpoint.put(inStatus)
-        return self.status_value.get()
-    
-    def set_pressure_limit(self, inLimit):
-        self.limit_setpoint.put(inLimit)        
-        return self.limit_value.get()
-        
-    def clear_error(self):
-        state=self.error_process.get()
-        if state==1:
-            self.error_process.put(0)
-        else:
-            self.error_process.put(1)
-        return self.error_state.get()
-        
-    def hplc2_resume(self):
-        self.clear_error()
-        self.set_status(1)
-        return self.status_value.get() 
-
-#        state=hplc2_error.get()
-#        if state==1:
-#            hplc2_error.put(0)
-#        else:
-#            hplc2_error.put(1)
-#        hplc2_status=PV('CXI:LC20:SDSB:Run')
-#        hplc2_status.put(1)
-    
-hplc_A = HPLC('CXI:LC20:SDS',name='hplc_A')
-hplc_B = HPLC('CXI:LC20:SDSB',name='hplc_B')
+from cxi.macros import  SelectorBoxValve
+valve01 = Cpt(SelectorBoxValve,':VLV:01')
+valve02 = Cpt(SelectorBoxValve,':VLV:02')
 
 
+from cxi.macros import  SelectorBoxValvePair
+from cxi.macros import  SelectorBoxReservoirStates
+from cxi.macros import  SelectorBoxReservoir
+from cxi.macros import  FlowMeter
+from cxi.macros import  SelectorBox
+selectorbox2 = SelectorBox('CXI:SDS:SEL:B', name = 'selectorbox2')
+selectorbox1 = SelectorBox('CXI:SDS:SEL:A', name = 'selectorbox1')
 
 class VacuumPump(Device):
     '''
@@ -711,7 +489,7 @@ class Cspad(MPOD):
     quad3 = Cpt(MPOD,':CH:3')
     
 ds2_cspad = Cspad('CXI:D50:MPD',name='ds2_cspad')
-ds1_cspad = Cspad('CXI:D51:MPD',name='ds1_cspad') 
+#ds1_cspad = Cspad('CXI:D51:MPD',name='ds1_cspad') 
 
 
 
@@ -733,8 +511,30 @@ dsd_chiller = DetectorChiller('CXI:DSD',name='dsd_chiller')
 #define the DG2 and DSC Be lens x and y motors
 dg2_Be_lenses_x_pos = IMS('CXI:DG2:MMS:05',name = 'dg2_Be_lenses_x_pos')  
 dg2_Be_lenses_y_pos = IMS('CXI:DG2:MMS:06',name = 'dg2_Be_lenses_y_pos')
-dsc_Be_lenses_x_pos = IMS('CXI:DS1:MMS:07',name = 'dsc_Be_lenses_x_pos')
-dsc_Be_lenses_y_pos = IMS('CXI:DS1:MMS:08',name = 'dsc_Be_lenses_y_pos')
+
+with safe_load('dsc_lenses'):    
+    dsc_Be_lenses_x_pos = IMS('CXI:DS1:MMS:07',name = 'dsc_Be_lenses_x_pos')
+    dsc_Be_lenses_y_pos = IMS('CXI:DS1:MMS:08',name = 'dsc_Be_lenses_y_pos')
+    
+    #these functions are currently being defined to move the lenses in for 9.831 keV only. 
+    def dsc_lenses_in():
+        dsc_Be_lenses_x_pos.enable()
+        dsc_Be_lenses_y_pos.enable()
+        dsc_Be_lenses_x_pos.mv(0,wait=True)
+        dsc_Be_lenses_y_pos.mv(38.3569, wait=True)
+        dsc_Be_lenses_x_pos.mv(1.71, wait=True)
+        dsc_Be_lenses_x_pos.disable()
+        dsc_Be_lenses_y_pos.disable()
+        print("The DSC lenses have arrived and are aligned for 9.8 keV and have been disabled")
+    
+    def dsc_lenses_out():
+        dsc_Be_lenses_x_pos.enable()
+        dsc_Be_lenses_y_pos.enable()
+        dsc_Be_lenses_x_pos.mv(0,wait=True)
+        dsc_Be_lenses_y_pos.mv(60, wait=True)
+        dsc_Be_lenses_x_pos.disable()
+        dsc_Be_lenses_y_pos.disable()
+        print("The DSC lenses have been moved from the beam path and have been disabled")
 
 def vent_sc3(rate="Normal"):    
     #defining a progress bar    
@@ -750,7 +550,7 @@ def vent_sc3(rate="Normal"):
             sc3_vgc01_override.put(0)
             print("Changing the GateValve override to Low from High")
             sleep(1)
-            counter=+counter+1
+            counter+=counter+1
     except counter>=15:
         if sc3_gatevalve_upstream.valve_closed.get()==1:
             print("The override is misbehaving but the gate valve is closed.  Proceeding with vent")
@@ -990,6 +790,7 @@ def vent_sc1(rate="Normal"):
     
     if rate=="Fast":
         print("will do a more rapid venting procedure with a 3 min slow down of the turbos")
+        sc1_gcc01.disable()
         sc1_ventline.vcc01.rapid_open_toggle()
         sc1_ventline.vcc02.rapid_open_toggle()      
         time_point=180
@@ -1089,12 +890,11 @@ def vent_sc1(rate="Normal"):
         
             
     else:
-        sc1_ventline.vcc01.close_valve()
-        sc1_ventline.vcc02.close_valve()
+        sc1_ventline.vcc01.open_valve()
+        sc1_ventline.vcc02.open_valve()
         subprocess.call(['/reg/neh/operator/cxiopr/bin/cxi-bash1.sh'])        
         sleep(900)
         sc3_ventline.vcc01.close_valve()
-        
         sc3_ventline.vcc02.close_valve()
     
     subprocess.call(['/reg/neh/operator/cxiopr/bin/cxi-bash1.sh'])
@@ -1116,7 +916,6 @@ def shift_end():
     sc1_gatevalve_upstream.close_valve()
     sc3_plc_override.put(0)
     dg3_gatevalve_upstream.close_valve()
-
 
 
 def cycle_sc3():
@@ -1185,7 +984,25 @@ def shift_start():
     dg2_gatevalve_downstream.open_valve()
     sc1_gatevalve_upstream.open_valve()
     sc1_gatevalve_downstream.open_valve()
-    
+
+
+def end_shift():
+    '''this is just a function to shut the proper upstream gate valves at CXI. It will not close the gate valve that separates the main sample chamber and the detector chamber.'''
+    cxi_pulsepicker.close()
+    dg1_yag_y.umv(0)
+    print("the DG1 YAG is inserted")
+    dg2_yag_y.umv(0)
+    print("The DG2 Yag is inserted")
+  
+    dg1_gatevalve_upstream.close_valve()
+    dg1_gatevalve_downstream.close_valve()
+    kb2_gatevalve_upstream.close_valve()
+    dg2_gatevalve_upstream.close_valve()
+    dg2_gatevalve_downstream.close_valve()
+    sc1_gatevalve_upstream.close_valve()
+
+
+
     
 def gige_launch(camera=1,view="camViewer"):
     '''camera defines which gige to use and view defines whether to open the '''
@@ -1195,3 +1012,110 @@ def gige_launch(camera=1,view="camViewer"):
     else:
         subprocess.call(['/reg/g/pcds/engineering_tools/cxi/scripts/gige' ,'-c', cam, "-w", str(12)])
     
+import pyaudio
+import wave
+import time
+
+
+chunk = 1024
+
+def play_wav(wav_filename,chunk_size = chunk):
+    
+    wf = wave.open(wav_filename, 'rb')
+
+    p = pyaudio.PyAudio()
+
+    soundfile = p.open(format=p.get_format_from_width(wf.getsampwidth()), channels = wf.getnchannels(), rate = wf.getframerate(), output=True)
+
+    data = wf.readframes(chunk_size)
+    while len(data) > 0:
+        soundfile.write(data)
+        data = wf.readframes(chunk_size)
+
+
+    #stop stream
+    soundfile.stop_stream()
+    soundfile.close()
+
+    #Close PyAudio
+    p.terminate()
+
+#def usage():
+#   prog_name = os.path.basename()
+
+with safe_load('plans'):
+    from cxi.plans import *
+
+from cxi.db import daq
+
+def constant_run(duration=300):
+    from pcdsdaq.daq import BEGIN_TIMEOUT
+    BEGIN_TIMEOUT=10
+    counter = 0 #for timeout errors
+    try:
+        while True:
+            try:
+                daq.connect()
+                daq.begin(record=True, duration=duration, wait=False, end_run=True)
+                daq.wait()
+                counter = 0 # success! So we should reset counter
+                daq.disconnect()
+            except TimeoutError:
+                daq.end_run()
+                daq.disconnect()
+                print("TimeoutError on previous run, starting the next run")
+                counter += 1
+                if counter > 3:
+                    print("Multiple timeout errors exiting script")
+                    break
+            except KeyboardInterrupt:
+                daq.end_run()
+                daq.disconnect()
+                break
+    except KeyboardInterrupt:
+        daq.end_run()
+        daq.disconnect()
+
+
+#defining some slits for the beamline. Will partially use the naming convention from other beamlines and name them s_location instead of s1, s2, etc.
+from pcdsdevices.slits import LusiSlits
+s_dsb=LusiSlits(name="s_dsb", prefix="CXI:DSB:JAWS")
+s_dg1=LusiSlits(name="s_dg1", prefix="CXI:DG1:JAWS")
+s_dg2=LusiSlits(name="s_dg2", prefix="CXI:DG2:JAWS")
+s_kb1u=LusiSlits(name="s_kb1u", prefix="CXI:KB1:JAWS:US")
+s_kb1d=LusiSlits(name="s_kb1d", prefix="CXI:KB1:JAWS:DS")
+
+
+#making a gdvn shutdown function for python
+def gdvn_shutdown_sc3():
+    pressure_list={200,100,50,25,50,25,10,50,10,25}
+    selectorbox2.valve01.requested_position.put(12)
+    selectorbox2.valve02.requested_position.put(12)
+    print("Switching to water port to wash out sample")
+    sleep(300)
+    hplc2.flowrate_setpoint.put(0)
+    hplc2.status_setpoint.put(0)
+    while hplc2.pressure.get() > 10:
+        sleep(5)
+    selectorbox2.valve02.requested_position.put(11)
+    print("Switching to air port aka aeropuerto on the sample valve")
+    sleep(120)
+    for i in pressure_list:
+        print("Setting the He sheath gas pressure to",i,"psi")
+        propB.chA.pressure_setpoint.put(i)
+        if i==25:
+            sleep(30)
+        elif i==10:
+            sleep(30)
+        else:
+            sleep(120)
+    selectorbox2.valve02.requested_position.put(10)
+    print("Switching the sample valve to blocked port 10")
+    sleep(180)
+    propB.chA.pressure_setpoint.put(0)
+    print("liquid line is on a closed port and He gas pressure is at 0 psi")
+
+
+
+#def pump_SC1():
+#    print ("ensuree the chamber door is securely closed")

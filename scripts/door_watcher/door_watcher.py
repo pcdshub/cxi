@@ -44,9 +44,9 @@ class Watchman:
 def main():
     watcher = Watchman(
         'PPS:FEH1:5:DOORA',
-        'CXI:SC1:AIO:04:RAW:ANALOGIN',
-        'CXI:SC1:AIO:04:ANALOGOUT',
-        'CXI:SC1:AIO:04:SCALE')
+        'CXI:SC2:AIO:06:RAW:ANALOGIN',
+        'CXI:SC2:AIO:06:ANALOGOUT',
+        'CXI:SC2:AIO:06:SCALE')
 
     # If door already open, maybe we crashed? Let's be safe and turn it off.
     if watcher.door_state.get() == 0:
