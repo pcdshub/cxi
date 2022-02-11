@@ -19,7 +19,7 @@ from cxi.db import cxi_pulsepicker
 #from cxi.db import daq
 
 ##making the cxi_pulsepicker something that can be monitored by jet tracking
-#cxi_pulsepicker_state=PV('XRT:DIA:MMS:16:READ_DF')
+#cxi_pulsepicker_state=PV('CXI:DIA:MMS:16:READ_DF')
 
 class Jet_chaser(Device):
     sc3_broad_x = Cpt(IMS,':PI3:MMS:01')    
