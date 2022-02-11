@@ -1,6 +1,7 @@
 dev
+logs
 
-# Last load information
+# Ignore generated database file
 cxi/db.txt
 
 # Byte-compiled / optimized / DLL files
@@ -10,6 +11,11 @@ __pycache__/
 
 # C extensions
 *.so
+
+# Swap files
+*~
+*.swp
+*.swo
 
 # Distribution / packaging
 .Python
