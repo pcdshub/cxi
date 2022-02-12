@@ -1,25 +1,22 @@
-from hutch_python.utils import safe_load
-
+import statistics as stat
 import subprocess
 import sys
-from scipy import ndimage
-
-from ophyd import Device, Component as Cpt, EpicsSignal, EpicsSignalRO, AreaDetector
-from pcdsdevices.device_types import PulsePicker
+from time import sleep
 
 import matplotlib.pyplot as plt
-from time import sleep
-import statistics as stat 
-
-from pcdsdevices.device_types import IMS
 from epics import PV
-
-#from cxi.db import cxi
-from cxi.db import cxi_pulsepicker
-#from cxi.db import daq
-from cxi.db import camviewer
-
+from hutch_python.utils import safe_load
+from ophyd import AreaDetector
+from ophyd import Component as Cpt
+from ophyd import Device, EpicsSignal, EpicsSignalRO
+from pcdsdevices.device_types import IMS, PulsePicker
 from pcdsdevices.sequencer import EventSequencer
+from scipy import ndimage
+
+#from cxi.db import daq
+#from cxi.db import cxi
+from cxi.db import camviewer, cxi_pulsepicker
+
 seq = EventSequencer('ECS:SYS0:5', name='seq_5')
 
 sc3_pulsepicker = PulsePicker('CXI:DS1:MMS:14', name='sc3_pulsepicker')
@@ -35,8 +32,8 @@ sc1_DscCspad_intensity=PV('CXI:SC1:DIFFRACT:TOTAL_ADU')
 #defining quick CSPAD optimization function
 tot_intensity=0
 
+from cxi.macros import Jet_chaser
 from cxi.time_scans import Timetool
-from cxi.macros import Jet_chaser        
 sc3_jet_chase = Jet_chaser('CXI',name = 'sc3_jet_chase')
 
 def get_timetool():
@@ -66,7 +63,7 @@ with safe_load('MESH'):
 
 # load devices used for jet tracking testing
 with safe_load('JT_testing_objects'):
-  from jet_tracking.devices import JTInput, JTOutput, JTFake
+  from jet_tracking.devices import JTFake, JTInput, JTOutput
 
   JT_input = JTInput(prefix='CXI:JTRK:REQ', name='JT_input')
   JT_output = JTOutput(prefix='CXI:JTRK:PASS', name='JT_output')
@@ -163,11 +160,7 @@ if True:
 with safe_load("imprint scans"):
     from cxi.imprint import imprint_row, sequencer, beam_stats
 
-    
-from cxi.macros import safe_samplex
-from cxi.macros import GX_readback
-from cxi.macros import Proportionair
-from cxi.macros import HPLC
+from cxi.macros import HPLC, GX_readback, Proportionair, safe_samplex
 
 propA=Proportionair('CXI:SDS:PCM:A', name='propA')
 propB=Proportionair('CXI:SDS:PCM:B', name='propB')
@@ -180,16 +173,13 @@ Building the selector boxes with multiple inheritances
 Building blocks will be reservoirs, valves, flow meters
 '''
 
-from cxi.macros import  SelectorBoxValve
+from cxi.macros import SelectorBoxValve
 valve01 = Cpt(SelectorBoxValve,':VLV:01')
 valve02 = Cpt(SelectorBoxValve,':VLV:02')
 
 
-from cxi.macros import  SelectorBoxValvePair
-from cxi.macros import  SelectorBoxReservoirStates
-from cxi.macros import  SelectorBoxReservoir
-from cxi.macros import  FlowMeter
-from cxi.macros import  SelectorBox
+from cxi.macros import (FlowMeter, SelectorBox, SelectorBoxReservoir,
+                        SelectorBoxReservoirStates, SelectorBoxValvePair)
 selectorbox2 = SelectorBox('CXI:SDS:SEL:B', name = 'selectorbox2')
 selectorbox1 = SelectorBox('CXI:SDS:SEL:A', name = 'selectorbox1')
 
