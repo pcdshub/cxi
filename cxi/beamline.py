@@ -162,6 +162,29 @@ if True:
 with safe_load("imprint scans"):
     from cxi.imprint import imprint_row, sequencer, beam_stats
 
+with safe_load("LXT"):
+    from pcdsdevices.lxe import LaserTiming
+    lxt = LaserTiming('LAS:FS5', name='lxt')
+
+with safe_load("LXT TTC"):
+    from pcdsdevices.device import ObjectComponent as OCpt
+    from pcdsdevices.pseudopos import SyncAxis
+
+    from cxi.db import cxi_txt
+    cxi_txt.name = 'txt'
+
+    class LXTTTC(SyncAxis):
+        lxt = OCpt(lxt)
+        txt = OCpt(xpp_txt)
+
+        tab_component_names = True
+        scales = {'txt': -1}
+        warn_deadband = 5e-14
+        fix_sync_keep_still = 'lxt'
+        sync_limits = (-10e-6, 10e-6)
+
+    lxt_ttc = LXTTTC('', name='lxt_ttc')
+
 
 with safe_load("SDS Equipment"):
     from cxi.macros import HPLC, GX_readback, Proportionair, safe_samplex
