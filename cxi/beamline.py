@@ -32,10 +32,6 @@ sc1_DscCspad_intensity=PV('CXI:SC1:DIFFRACT:TOTAL_ADU')
 #defining quick CSPAD optimization function
 tot_intensity=0
 
-from cxi.macros import Jet_chaser
-from cxi.time_scans import Timetool
-sc3_jet_chase = Jet_chaser('CXI',name = 'sc3_jet_chase')
-
 def get_timetool():
     return Timetool.from_rc()
 
@@ -45,29 +41,35 @@ def sc1_stats():
         plt.imshow(sc1.get())
         plt.plot()
         sleep(0.1)    
+
+with safe_load('SC3 Jet Chaser'):
+    from cxi.macros import Jet_chaser
+    from cxi.time_scans import Timetool
+    sc3_jet_chase = Jet_chaser('CXI',name = 'sc3_jet_chase')
     
 #defining positions for the sc1_sample_x motor so that we can quickly move the x motor to the proper position
 sc1_led = IMS('CXI:SC1:MMS:18', name='sc1_led')
 sc1_sample_x = IMS('CXI:SC1:MMS:02',name='sc1_sample_x')
 
+
 with safe_load('Foil_motors'):
 #   foil_x = IMS('CXI:PI1:MMS:01', name = 'foil_x')
 #   foil_y = IMS('CXI:PI1:MMS:02', name = 'foil_y')
-   foil_x = IMS('CXI:SC2:MMS:06', name = 'foil_x')
-   foil_y = IMS('CXI:SC2:MMS:05', name = 'foil_y')
+    foil_x = IMS('CXI:SC2:MMS:06', name = 'foil_x')
+    foil_y = IMS('CXI:SC2:MMS:05', name = 'foil_y')
+
 
 with safe_load('MESH'):
     from pcdsdevices.analog_signals import Mesh
     mesh = Mesh('CXI:USR', 0, 1)
 
 
-# load devices used for jet tracking testing
 with safe_load('JT_testing_objects'):
-  from jet_tracking.devices import JTFake, JTInput, JTOutput
+    from jet_tracking.devices import JTFake, JTInput, JTOutput
 
-  JT_input = JTInput(prefix='CXI:JTRK:REQ', name='JT_input')
-  JT_output = JTOutput(prefix='CXI:JTRK:PASS', name='JT_output')
-  JT_fake = JTFake(prefix='CXI:JTRK:FAKE', name='JT_fake')
+    JT_input = JTInput(prefix='CXI:JTRK:REQ', name='JT_input')
+    JT_output = JTOutput(prefix='CXI:JTRK:PASS', name='JT_output')
+    JT_fake = JTFake(prefix='CXI:JTRK:FAKE', name='JT_fake')
 
 
 if True:
@@ -160,28 +162,30 @@ if True:
 with safe_load("imprint scans"):
     from cxi.imprint import imprint_row, sequencer, beam_stats
 
-from cxi.macros import HPLC, GX_readback, Proportionair, safe_samplex
 
-propA=Proportionair('CXI:SDS:PCM:A', name='propA')
-propB=Proportionair('CXI:SDS:PCM:B', name='propB')
-hplc1 = HPLC('CXI:SDS:LC20:01',name='hplc1')
-hplc2 = HPLC('CXI:SDS:LC20:02',name='hplc2')
+with safe_load("SDS Equipment"):
+    from cxi.macros import HPLC, GX_readback, Proportionair, safe_samplex
+
+    propA=Proportionair('CXI:SDS:PCM:A', name='propA')
+    propB=Proportionair('CXI:SDS:PCM:B', name='propB')
+    hplc1 = HPLC('CXI:SDS:LC20:01',name='hplc1')
+    hplc2 = HPLC('CXI:SDS:LC20:02',name='hplc2')
+
+    '''
+    Building the selector boxes with multiple inheritances
+    Building blocks will be reservoirs, valves, flow meters
+    '''
+
+    from cxi.macros import SelectorBoxValve
+    valve01 = Cpt(SelectorBoxValve,':VLV:01')
+    valve02 = Cpt(SelectorBoxValve,':VLV:02')
 
 
-'''
-Building the selector boxes with multiple inheritances
-Building blocks will be reservoirs, valves, flow meters
-'''
+    from cxi.macros import (FlowMeter, SelectorBox, SelectorBoxReservoir,
+                            SelectorBoxReservoirStates, SelectorBoxValvePair)
+    selectorbox2 = SelectorBox('CXI:SDS:SEL:B', name = 'selectorbox2')
+    selectorbox1 = SelectorBox('CXI:SDS:SEL:A', name = 'selectorbox1')
 
-from cxi.macros import SelectorBoxValve
-valve01 = Cpt(SelectorBoxValve,':VLV:01')
-valve02 = Cpt(SelectorBoxValve,':VLV:02')
-
-
-from cxi.macros import (FlowMeter, SelectorBox, SelectorBoxReservoir,
-                        SelectorBoxReservoirStates, SelectorBoxValvePair)
-selectorbox2 = SelectorBox('CXI:SDS:SEL:B', name = 'selectorbox2')
-selectorbox1 = SelectorBox('CXI:SDS:SEL:A', name = 'selectorbox1')
 
 class VacuumPump(Device):
     '''
@@ -245,8 +249,7 @@ class VacuumPump(Device):
                     print("The turbo pump is on and accelerating")
                 else:
                     print("The turbo pump is on at full speed")
-        subprocess.call(['/reg/neh/operator/cxiopr/bin/cxi-bash1.sh'])                 
-
+        subprocess.call(['/reg/neh/operator/cxiopr/bin/cxi-bash1.sh'])
 
 
 class TurboPump(VacuumPump):
@@ -261,7 +264,6 @@ sc3_turbo02 = TurboPump('CXI:SC3:PTM:02',name='sc3_turbo02')
 sc3_turbo03 = TurboPump('CXI:SC3:PTM:03',name='sc3_turbo03')
 dsd_turbo01 = TurboPump('CXI:DSD:PTM:01',name='dsd_turbo01')  
 
-     
      
 class Gauge(Device):
     pressure = Cpt(EpicsSignalRO,':PMON')
