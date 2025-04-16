@@ -1,0 +1,14 @@
+# default group
+* @pcdshub/cxi-members
+
+# language-specific group(s)
+## PYTHON files
+*.py @pcdshub/python-reviewers @pcdshub/cxi-members
+*.pyi @pcdshub/python-reviewers @pcdshub/cxi-members
+*.pyc @pcdshub/python-reviewers @pcdshub/cxi-members
+*.pyw @pcdshub/python-reviewers @pcdshub/cxi-members
+*.pyx @pcdshub/python-reviewers @pcdshub/cxi-members
+*.pyd @pcdshub/python-reviewers @pcdshub/cxi-members
+
+# github folder holds administrative files
+.github/** @pcdshub/software-admin
